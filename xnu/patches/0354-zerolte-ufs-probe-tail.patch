@@ -1,0 +1,50 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 0d4415465..7ff612f2a 100644
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -719,16 +719,6 @@ bsd_init(void)
+ 	restricted_in_port_init();
+ #endif /* SOCKETS */
+ 
+-#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
+-	/* S-Boot leaves the UFS link up; read the host and the GPT now, before
+-	 * bsd_autoconf(), so the storage answer is on screen even if the later
+-	 * root-device search never runs. */
+-	{
+-		extern void herolte_ufs_probe(void);
+-		herolte_ufs_probe();
+-	}
+-#endif
+-
+ 	/*
+ 	 * Initializes security event auditing.
+ 	 * XXX: Should/could this occur later?
+@@ -1149,6 +1139,14 @@ bsd_autoconf(void)
+ 	}
+ #if defined(ARM64_BOARD_CONFIG_ZEROLTE)
+ 	kprintf("bsd_autoconf: pseudo-inits done\n");
++	/* S-Boot leaves the UFS link up; probe here so the answer is on
++	 * screen instead of scrolling away with the boot log. */
++	{
++		extern void herolte_ufs_probe(void);
++		kprintf("ZEROLTE: UFS probe begin\n");
++		herolte_ufs_probe();
++		kprintf("ZEROLTE: UFS probe end\n");
++	}
+ #endif
+ 
+ 	return IOKitBSDInit();
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index 6dbcced50..e6b404b21 100644
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -118,6 +118,9 @@ IOKitBSDInit( void )
+ 	IOLog("IOKitBSDInit: enter\n");
+ #endif
+ 	IOService::publishResource("IOBSD");
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	IOLog("IOKitBSDInit: IOBSD published\n");
++#endif
+ 
+ #if IOPOLLED_COREFILE
+ 	corefile_open_call = thread_call_allocate_with_options(IOOpenPolledCoreFile, NULL, THREAD_CALL_PRIORITY_KERNEL, THREAD_CALL_OPTIONS_ONCE);

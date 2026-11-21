@@ -83,8 +83,16 @@ git -C "$WORK/dxb" fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
 git -C "$WORK/dxb" checkout -q FETCH_HEAD
 
 if [ -d "$WORK/dxb/xnu/.git" ]; then
-    echo "== resetting the patched xnu tree =="
-    git -C "$WORK/dxb/xnu" checkout -q -- .
+    echo "== resetting the patched xnu tree to the pristine tag =="
+    # Always go back to the tag, not to whatever HEAD is: a temporary commit or
+    # an edited patch would otherwise leave stale code in place, and
+    # darwin-xnu-build silently *skips* patches that no longer apply.
+    BASE=$(git -C "$WORK/dxb/xnu" rev-parse --verify -q "refs/tags/xnu-8796.141.3^{commit}" || true)
+    if [ -n "$BASE" ]; then
+        git -C "$WORK/dxb/xnu" reset -q --hard "$BASE"
+    else
+        git -C "$WORK/dxb/xnu" checkout -q -- .
+    fi
     git -C "$WORK/dxb/xnu" clean -qfd
 else
     echo "== first build: the script will clone xnu =="
@@ -117,6 +125,14 @@ MACOS_VERSION="$MACOS_VERSION" KERNEL_CONFIG="$KERNEL_CONFIG" MACHINE_CONFIG="$M
 
 KERNEL="fakeroot/System/Library/Kernels/kernel.$(echo "$KERNEL_CONFIG" | tr A-Z a-z).$(echo "$MACHINE_CONFIG" | tr A-Z a-z)"
 [ -f "$KERNEL" ] || { echo "build finished without $KERNEL, see build.log" >&2; exit 1; }
+
+# darwin-xnu-build skips patches it cannot apply; a ZEROLTE patch in that list
+# means the kernel just built does not contain our code.
+if grep -q "Skipping patch .*/03[5-9][0-9]-" "$WORK/build.log"; then
+    echo "ERROR: one of the zerolte patches was skipped, the build is stale:" >&2
+    grep "Skipping patch .*/03[5-9][0-9]-" "$WORK/build.log" >&2
+    exit 1
+fi
 mkdir -p "$WORK/out"
 cp "$KERNEL" "$WORK/out/"
 echo "== kernel: $WORK/out/$(basename "$KERNEL")  ($(($(date +%s) - START))s) =="
