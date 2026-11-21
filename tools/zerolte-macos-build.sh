@@ -81,6 +81,10 @@ if [ ! -d "$WORK/dxb/.git" ]; then
 fi
 git -C "$WORK/dxb" fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
 git -C "$WORK/dxb" checkout -q FETCH_HEAD
+# Drop our copies from the previous run: a deleted patch would otherwise stay
+# in dxb/patches and be applied again (blacktop's own patches are tracked, so
+# clean leaves them alone).
+git -C "$WORK/dxb" clean -qfd -- patches
 
 if [ -d "$WORK/dxb/xnu/.git" ]; then
     echo "== resetting the patched xnu tree to the pristine tag =="
