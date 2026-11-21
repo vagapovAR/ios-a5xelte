@@ -1,0 +1,22 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 848d17eb7..dd37e7dc1 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -876,6 +876,17 @@ herolte_ufs_probe(void)
+ 	    ufs_rd(REG_UTRLBAU), ufs_rd(REG_UTRLBA), ufs_rd(REG_UTRLDBR), ufs_rd(REG_UTRLRSR));
+ 	printf("HEROLTE UFS: probe: txprdt 0x%x rxprdt 0x%x nexus 0x%x\n",
+ 	    ufs_rd(VS_TXPRDT_ENTRY_SIZE), ufs_rd(VS_RXPRDT_ENTRY_SIZE), ufs_rd(VS_UTRL_NEXUS_TYPE));
++	/*
++	 * The 8890 port uses the HCS/HCE/UTRL* offsets shifted by +8 from the
++	 * UFSHCI spec. Dump 0x20..0x64 so the 7420 layout is visible.
++	 */
++	printf("UFS regs A: 20=%08x 24=%08x 28=%08x 2c=%08x 30=%08x 34=%08x 38=%08x 3c=%08x\n",
++	    ufs_rd(0x20), ufs_rd(0x24), ufs_rd(0x28), ufs_rd(0x2c),
++	    ufs_rd(0x30), ufs_rd(0x34), ufs_rd(0x38), ufs_rd(0x3c));
++	printf("UFS regs B: 40=%08x 44=%08x 48=%08x 4c=%08x 50=%08x 54=%08x 58=%08x 5c=%08x 60=%08x 64=%08x\n",
++	    ufs_rd(0x40), ufs_rd(0x44), ufs_rd(0x48), ufs_rd(0x4c),
++	    ufs_rd(0x50), ufs_rd(0x54), ufs_rd(0x58), ufs_rd(0x5c),
++	    ufs_rd(0x60), ufs_rd(0x64));
+ 	if (!su.dma && kmem_alloc_contig(kernel_map, &su.dma, DMA_SIZE, PAGE_MASK, 0, 0,
+ 	    KMA_DATA | KMA_ZERO | KMA_PERMANENT, VM_KERN_MEMORY_IOKIT) != KERN_SUCCESS) {
+ 		printf("HEROLTE UFS: probe: no contiguous DMA memory\n");
