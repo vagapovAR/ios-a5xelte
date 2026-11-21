@@ -378,6 +378,38 @@ Next patch (`0363`): map CMU_FSYS, ungate those clocks, select the 26 MHz
 parent, then re-run the PHY init + link startup. With the PLL locked the PA
 layer should reach 0 and the GPT read should follow.
 
+## 2026-11-21 (latest): gates open, PLL still unlocked
+
+`0363` un-gates the UFS clocks in CMU_FSYS1 (0x156e0000) — all six reads were
+0, so S-Boot had gated every one of them; the writes stuck:
+
+```
+cmu 0800 bit 31: 0x0 -> 0x80000000   (aclk_ufs20_link)
+cmu 0a04 bit 20: 0x0 -> 0x00100000   (sclk_ufsunipro20)
+cmu 0a04 bit 16: 0x0 -> 0x00010000   (sclk_phy_fsys1)
+cmu 0a0c bit 24: 0x0 -> 0x01000000   (sclk_combo_phy_embedded_26m)
+cmu 0a08 bit 28/24: ...              (tx/rx symbol)
+phy: pma 0x1e 0xa -> pll 0x8a (lock bit 0)
+```
+
+The MPHY PLL still does not lock, so the reference is not reaching the PHY, or
+the PHY still needs the rest of `init_cfg[]` that `0362` skipped:
+
+- the PCS/DME overrides: `PA_DBG_OV_TM` (true/false around `0x297 = 0x17` on
+  PHY_PCS_RXTX) and the two UNIPRO MIB sets `PA_DBG_OPTION_SUITE = 0x30103`,
+  `PA_DBG_AUTOMODE_THLD = 0x222e` — all via `DME_SET` (0x02);
+- `exynos_ufs_config_unipro()`: `unipro_writel(0x1, UNIP_DME_PACP_CNFBIT)` at
+  the UNIPRO block (+0x1000) and `PA_DBG_CLK_PERIOD` / `PA_TXTRAILINGCLOCKS`
+  DME sets;
+- the UNIPRO clock chain lives in CMU_TOP1, not FSYS1:
+  `mout_sclk_ufsunipro20` = MUX_SEL_TOP1_FSYS1 bits 16-17 (width 2),
+  `dout_sclk_ufsunipro20` = DIV_TOP1_FSYS1 bits 16..21 — if that parent/div is
+  not set, `sclk_ufsunipro20_gated` carries nothing useful.
+- possibly a device hardware reset (`ufs_rst_n` pinctrl / `exynos_ufs_dev_hw_reset`).
+
+`clk7420.c` and `ufs-exynos.c` (fetched to /tmp on the Mac) contain all of it.
+
+
 
 
 
