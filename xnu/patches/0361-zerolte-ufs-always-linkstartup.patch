@@ -1,0 +1,17 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 3fda71687..69c309013 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -480,7 +480,11 @@ ufs_take_over_host(void)
+ 		printf("HEROLTE UFS: enable done hce 0x%x hcs 0x%x\n", hce, hcs);
+ 	}
+ #if defined(ARM64_BOARD_CONFIG_ZEROLTE)
+-	if ((hce & 1) && !(hcs & HCS_DP)) {
++	/*
++	 * DP can be a leftover from S-Boot: run the UIC sequence anyway, the
++	 * way ufshcd_link_startup() does after enabling HCE.
++	 */
++	if (hce & 1) {
+ 		int lerr = zerolte_ufs_uic(UIC_CMD_DME_LINK_STARTUP, 0, 0, 0);
+ 		printf("HEROLTE UFS: link startup %d: is 0x%x pa 0x%x dl 0x%x "
+ 		    "nl 0x%x tl 0x%x dme 0x%x hcs 0x%x\n",
