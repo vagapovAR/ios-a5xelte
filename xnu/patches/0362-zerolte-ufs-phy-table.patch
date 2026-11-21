@@ -1,0 +1,66 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 69c309013..977dccc7f 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -430,6 +430,51 @@ zerolte_ufs_uic(uint32_t cmd, uint32_t a1, uint32_t a2, uint32_t a3)
+ 	return ETIMEDOUT;
+ }
+ 
++/*
++ * 7420 PHY PMA init from Linux ufs-exynos.c init_cfg[]: COMMON at reg<<2,
++ * TRSV at (reg + 0x30*lane)<<2, both inside 0x15571800 (0x240 bytes).
++ * The two UNIPRO DME overrides at the top of that table are not applied
++ * yet; first see whether the PA layer comes up with the PMA part only.
++ */
++static void
++zerolte_ufs_phy_init(void)
++{
++	static volatile uint32_t *pma;
++	static const struct { uint8_t reg, val; } common[] = {
++		{0x0f, 0xfa}, {0x10, 0x82}, {0x11, 0x1e}, {0x17, 0x84},
++	};
++	static const struct { uint8_t reg, val; } trsv[] = {
++		{0x35, 0x58}, {0x36, 0x32}, {0x37, 0x40}, {0x3b, 0x83},
++		{0x42, 0x88}, {0x43, 0xa6}, {0x48, 0x74}, {0x4c, 0x5b},
++		{0x4d, 0x83}, {0x5c, 0x14},
++	};
++	if (!pma) {
++		pma = (volatile uint32_t *)ml_io_map(0x15571800, 0x240);
++	}
++	if (!pma) {
++		printf("HEROLTE UFS: phy: cannot map the PMA\n");
++		return;
++	}
++	printf("HEROLTE UFS: phy: pma 0x1e 0x%x 0x5e 0x%x\n",
++	    pma[0x1e], pma[(0x5e << 2) / 4]);
++	for (unsigned i = 0; i < sizeof(common) / sizeof(common[0]); i++) {
++		pma[(common[i].reg << 2) / 4] = common[i].val;
++	}
++	for (unsigned lane = 0; lane < 2; lane++) {
++		for (unsigned i = 0; i < sizeof(trsv) / sizeof(trsv[0]); i++) {
++			unsigned off = (trsv[i].reg + 0x30 * lane) << 2;
++			pma[off / 4] = trsv[i].val;
++		}
++	}
++	for (int i = 0; i < 100; i++) {
++		if (pma[0x1e] & (1u << 5))
++			break;
++		delay(1000);
++	}
++	printf("HEROLTE UFS: phy: pll 0x%x (lock bit %u) 0x5e 0x%x\n",
++	    pma[0x1e], (pma[0x1e] >> 5) & 1u, pma[(0x5e << 2) / 4]);
++}
++
+ static void
+ zerolte_ufs_power_up(void)
+ {
+@@ -480,6 +525,9 @@ ufs_take_over_host(void)
+ 		printf("HEROLTE UFS: enable done hce 0x%x hcs 0x%x\n", hce, hcs);
+ 	}
+ #if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	if (hce & 1) {
++		zerolte_ufs_phy_init();
++	}
+ 	/*
+ 	 * DP can be a leftover from S-Boot: run the UIC sequence anyway, the
+ 	 * way ufshcd_link_startup() does after enabling HCE.
