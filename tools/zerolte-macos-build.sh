@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Build kernel.development.zerolte on a local macOS host, the same way
+# .github/workflows/xnu.yml does on a runner.
+#
+#   tools/zerolte-macos-build.sh [workdir]
+#
+# Needs: Xcode (15.x preferred), Homebrew, ~10 GiB free. sudo is used once to
+# stub `xcodes` (build.sh only checks that it exists) and to select Xcode.
+# The result is copied to workdir/out/kernel.development.zerolte.
+set -euo pipefail
+
+REPO=$(cd "$(dirname "$0")/.." && pwd)
+WORK=${1:-$REPO/build-zerolte}
+DXB_REPO=https://github.com/blacktop/darwin-xnu-build
+DXB_SHA=663906528d1cd5ea8fde7de6f16de73db9511549
+MACOS_VERSION=13.5          # xnu-8796, the iOS 16 generation
+KERNEL_CONFIG=DEVELOPMENT
+MACHINE_CONFIG=ZEROLTE
+
+[ "$(uname -s)" = Darwin ] || { echo "run this on macOS" >&2; exit 1; }
+
+echo "== dependencies =="
+for tool in git python3 brew; do
+    command -v "$tool" >/dev/null || { echo "missing $tool" >&2; exit 1; }
+done
+brew list jq >/dev/null 2>&1 || brew install jq gum bash cmake ninja
+
+echo "== Xcode =="
+XC=$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1 || true)
+[ -n "$XC" ] || XC=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | head -1 || true)
+[ -n "$XC" ] || { echo "no /Applications/Xcode*.app found" >&2; exit 1; }
+echo "using $XC"
+sudo xcode-select -s "$XC"
+if ! command -v xcodes >/dev/null; then
+    printf '#!/bin/sh\nexit 0\n' | sudo tee "$(brew --prefix)/bin/xcodes" >/dev/null
+    sudo chmod +x "$(brew --prefix)/bin/xcodes"
+fi
+
+echo "== darwin-xnu-build @ ${DXB_SHA:0:12} =="
+mkdir -p "$WORK"
+if [ ! -d "$WORK/dxb/.git" ]; then
+    git init -q "$WORK/dxb"
+    git -C "$WORK/dxb" remote add origin "$DXB_REPO"
+fi
+git -C "$WORK/dxb" fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
+git -C "$WORK/dxb" checkout -q FETCH_HEAD
+git -C "$WORK/dxb" clean -qfdx
+cp "$REPO"/xnu/patches/*.patch "$REPO"/xnu/patches/*.sh "$WORK/dxb/patches/"
+
+echo "== firehose: plain arm64, no ARMv8.1 atomics =="
+python3 - "$WORK/dxb/build.sh" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+old = 'ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"'
+new = ('ARCHS="arm64" VALID_ARCHS="arm64" OTHER_CFLAGS="-mkernel -nostdinc '
+       '-Wno-packed -mcpu=cortex-a53 -march=armv8-a+crypto"')
+text = path.read_text()
+assert text.count(old) == 1, 'darwin-xnu-build firehose line changed'
+path.write_text(text.replace(old, new))
+print('firehose:', new)
+PY
+
+echo "== build (this takes 30-60 min) =="
+cd "$WORK/dxb"
+MACOS_VERSION="$MACOS_VERSION" KERNEL_CONFIG="$KERNEL_CONFIG" MACHINE_CONFIG="$MACHINE_CONFIG" \
+    bash build.sh 2>&1 | tee "$WORK/build.log"
+
+KERNEL="fakeroot/System/Library/Kernels/kernel.$(echo "$KERNEL_CONFIG" | tr A-Z a-z).$(echo "$MACHINE_CONFIG" | tr A-Z a-z)"
+[ -f "$KERNEL" ] || { echo "build finished without $KERNEL, see build.log" >&2; exit 1; }
+mkdir -p "$WORK/out"
+cp "$KERNEL" "$WORK/out/"
+echo "== kernel: $WORK/out/$(basename "$KERNEL") =="
+shasum -a 256 "$WORK/out/$(basename "$KERNEL")"
+echo
+echo "Copy it next to the loader and pack the BOOT image on the machine with adb:"
+echo "  python3 tools/mkpayload.py kernel.development.zerolte zerolte.adt payload.bin --cmdline \"\$CMDLINE\""
+echo "  python3 tools/zerolte-pack-boot.py pack boot-stock-g925f.img shim/zerolte/out/xnu_boot.Image xnu-boot.img --append payload.bin --partition-size 29360128"

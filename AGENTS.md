@@ -1,3 +1,10 @@
+# Working on the ZEROLTE port (Galaxy S6 edge SM-G925F, Exynos 7420)
+
+- Read `ZEROLTE_PROGRESS.md` first and record every new device observation there. Board facts live in `docs/herolte-bringup.md` style tables; the reference implementation is the herolte patch series.
+- The only partition XNU/probe trials may write is BOOT (`/dev/block/platform/15570000.ufs/by-name/BOOT`, `sda5`). Keep `boot-stock-g925f.img`, `backup/efs-g925f.img` and `backup/recovery-g925f.img` off the phone and out of git; never write EFS, RECOVERY, PARAM or the bootloaders. Confirm every other partition write with the user first.
+- S-Boot loads the kernel at `0x40000000 + text_offset`; `tools/zerolte-pack-boot.py` must keep copying the stock `text_offset`.
+- The boot CPU is a Cortex-A53 with `MMFR0=0x1122` (no 16 KiB granule) and no LSE, so this target uses the 4 KiB XNU path, exactly like herolte.
+
 # Working on the HEROLTE port (Galaxy S7 SM-G930F, Exynos 8890)
 
 - Read `HEROLTE_PROGRESS.md` and `docs/herolte-bringup.md` first; record new device evidence in the former. The A5XELTE files below are the reference implementation this port adapts.
