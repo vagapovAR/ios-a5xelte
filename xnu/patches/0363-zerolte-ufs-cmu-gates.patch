@@ -1,0 +1,48 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 977dccc7f..fedf6b1aa 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -436,9 +436,43 @@ zerolte_ufs_uic(uint32_t cmd, uint32_t a1, uint32_t a2, uint32_t a3)
+  * The two UNIPRO DME overrides at the top of that table are not applied
+  * yet; first see whether the PA layer comes up with the PMA part only.
+  */
++/*
++ * CMU_FSYS1 at 0x156e0000 (regs-clock-exynos7420.h, EXYNOS_CLKREG_FSYS1).
++ * S-Boot was reading the kernel from this UFS, so the muxes and dividers
++ * are already right; only the gates need to be opened again.
++ */
++static void
++zerolte_ufs_clocks_on(void)
++{
++	static volatile uint32_t *cmu;
++	static const struct { uint16_t off; uint8_t bit; } en[] = {
++		{0x0800, 31},   /* aclk_ufs20_link */
++		{0x0a04, 20},   /* sclk_ufsunipro20_gated */
++		{0x0a04, 16},   /* sclk_phy_fsys1_gated */
++		{0x0a0c, 24},   /* sclk_combo_phy_embedded_26m_gated */
++		{0x0a08, 28},   /* phyclk_ufs20_tx0/tx1_symbol_gated */
++		{0x0a08, 24},   /* phyclk_ufs20_rx0/rx1_symbol_gated */
++	};
++	if (!cmu) {
++		cmu = (volatile uint32_t *)ml_io_map(0x156e0000, 0x1000);
++	}
++	if (!cmu) {
++		printf("HEROLTE UFS: cmu: cannot map CMU_FSYS1\n");
++		return;
++	}
++	for (unsigned i = 0; i < sizeof(en) / sizeof(en[0]); i++) {
++		uint32_t v = cmu[en[i].off / 4];
++		cmu[en[i].off / 4] = v | (1u << en[i].bit);
++		printf("HEROLTE UFS: cmu %04x bit %u: 0x%x -> 0x%x\n",
++		    en[i].off, en[i].bit, v, cmu[en[i].off / 4]);
++	}
++	delay(1000);
++}
++
+ static void
+ zerolte_ufs_phy_init(void)
+ {
++	zerolte_ufs_clocks_on();
+ 	static volatile uint32_t *pma;
+ 	static const struct { uint8_t reg, val; } common[] = {
+ 		{0x0f, 0xfa}, {0x10, 0x82}, {0x11, 0x1e}, {0x17, 0x84},
