@@ -1,0 +1,46 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 9fd5748ab..e51f0c90c 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -416,9 +416,41 @@ ufs_wake_device(void)
+ 	return error;
+ }
+ 
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++/*
++ * The S6 edge's S-Boot hands over with the UFS PHY off and the HCI core
++ * clock stopped, so HCE never sticks. Linux's ufs-exynos does the same:
++ * exynos_ufs_ctrl_phy_pwr() writes 1 to the ufs-phy-sys PMU register
++ * (0x105c0720) and exynos_ufs_ctrl_hci_core_clk() clears
++ * HCI_CORECLK_STOP_EN (BIT(4) of the vendor HCI_FORCE_HCS at 0x1b4).
++ */
++static void
++zerolte_ufs_power_up(void)
++{
++	static volatile uint32_t *pmu;
++	if (!pmu) {
++		pmu = (volatile uint32_t *)ml_io_map(0x105c0000, 0x1000);
++	}
++	if (!pmu) {
++		printf("HEROLTE UFS: power-up: cannot map the PMU\n");
++		return;
++	}
++	printf("HEROLTE UFS: power-up: phy_sys 0x%x force_hcs 0x%x\n",
++	    pmu[0x720 / 4], ufs_rd(0x1b4));
++	pmu[0x720 / 4] = 1;
++	ufs_wr(0x1b4, ufs_rd(0x1b4) & ~0x10u);
++	delay(1000);
++	printf("HEROLTE UFS: power-up done: phy_sys 0x%x force_hcs 0x%x hcs 0x%x\n",
++	    pmu[0x720 / 4], ufs_rd(0x1b4), ufs_rd(REG_HCS));
++}
++#endif
++
+ static int
+ ufs_take_over_host(void)
+ {
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	zerolte_ufs_power_up();
++#endif
+ 	uint32_t hce = ufs_rd(REG_HCE), hcs = ufs_rd(REG_HCS);
+ 	if (!(hce & 1)) {
+ 		/*
