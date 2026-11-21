@@ -131,10 +131,22 @@ account), push this tree, run the `xnu` workflow with
 `tools/zerolte-pack-boot.py`. First expected result: XNU console text on the
 DECON framebuffer; storage follows after the UFS adaptation.
 
-Decision 2026-11-21: build locally on the user's hackintosh instead of
-Actions. `tools/zerolte-macos-build.sh` reproduces the workflow (Xcode 15,
-dxb pinned at 663906528d1c, patches copied, firehose rewritten,
-`MACOS_VERSION=13.5 KERNEL_CONFIG=DEVELOPMENT MACHINE_CONFIG=ZEROLTE`) and
-copies the result to `build-zerolte/out/`. The phone stays in the dev state
-(loader in BOOT, 30 s -> TWRP); stock BOOT is one `dd` away.
+**GitHub (2026-11-21):** fork `vagapovAR/ios-a5xelte`, branch `zerolte`.
+Run 44918392643 (commit 3a01e6a) failed after 14 min:
+- the libpthread/BearSSL/HFS staging scripts only accepted
+  SWEET|A5XELTE|HEROLTE, so `sweet_bearssl/` was never staged and every
+  crypto object failed;
+- `SweetFramebuffer.cpp:684` calls `notefe_zc_active()` outside the HEROLTE
+  guard, so ZEROLTE did not compile.
+Fixed in 2461a2d (ZEROLTE added to the three `*.sh`, a `false`
+`notefe_zc_active()` for ZEROLTE, patch 0350 regenerated and re-validated with
+`git apply`). Run 44920173487 is the retry.
+
+
+The local macOS path stays available: `tools/zerolte-macos-build.sh`
+reproduces the workflow (Xcode 15, dxb pinned at 663906528d1c, patches copied,
+firehose rewritten, `MACOS_VERSION=13.5 KERNEL_CONFIG=DEVELOPMENT
+MACHINE_CONFIG=ZEROLTE`) and copies the result to `build-zerolte/out/`.
+The phone stays in the dev state (loader in BOOT, 30 s -> TWRP); stock BOOT is
+one `dd` away.
 
