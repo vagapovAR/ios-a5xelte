@@ -193,4 +193,27 @@ Boot command line used:
 `debug=0xc keepsyms=1 -enable_kprintf_spam -noprogress cpus=1`
 (no `rd=`: there is no zerolte block driver yet).
 
+### The mbuf redzone panic, analysed
+
+`tools/macho-sym.py` resolves the panic caller: `0xfffffff0078125b0` is
+`m_free+0x3c0` (symbol `_m_free$XNU_INTERNAL` at 0xfffffff0078121f0). The
+numbers from the screen are self-consistent and precise:
+
+```
+mbuf 0xfffffff6500aaf00  value 0x500aaf00  instead of 0x54ab49a0  cookie 0x04a1e6a0
+```
+
+`0x500aaf00` is the low 32 bits of the mbuf address, and
+`0x500aaf00 ^ 0x04a1e6a0 = 0x54ab49a0`: the stored redzone is the one that
+would be computed for an mbuf at `0xfffffff654ab49a0`. So the pkthdr of one
+zone element carries the redzone of another (a copy or a reuse without
+`m_redzone_init`), not random corruption. `m_redzone_init` only runs in
+`MBUF_INIT_PKTHDR`, `m_copy_pkthdr` (twice) and `mbuf_reinit`; the check fires
+in `m_free`.
+
+Patch `0351-zerolte-mbuf-redzone-bringup.patch` keeps the panic on other
+boards but on ZEROLTE prints the mbuf type/flags/len and re-arms the redzone,
+so the boot continues and the owner of the packet becomes visible.
+
+
 

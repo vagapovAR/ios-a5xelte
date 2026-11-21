@@ -1,0 +1,69 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index a591abc..ddc66d7 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -15,7 +15,14 @@
+  * LUN 0. rd=ufsroot0 exposes the GPT partition ufsroot= (default
+  * "USERDATA") as ufsroot0; writes need ufsrw=1 and stay inside it.
+  */
+-#if defined(ARM64_BOARD_CONFIG_HEROLTE)
++#if defined(ARM64_BOARD_CONFIG_HEROLTE) || defined(ARM64_BOARD_CONFIG_ZEROLTE)
++/* The SoC block is the same UFSHCI+vendor layout; only the base and the
++ * ADT node name differ (7420: 0x15570000, 8890: 0x155a0000). */
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++#define UFS_DT_NODE "/zerolte-ufs"
++#else
++#define UFS_DT_NODE "/herolte-ufs"
++#endif
+ #include <sys/param.h>
+ #include <sys/systm.h>
+ #include <sys/buf.h>
+@@ -751,7 +758,7 @@ herolte_ufs_init(void)
+ 	char want[64] = "USERDATA";
+ 	int error;
+ 
+-	if (SecureDTLookupEntry(NULL, "/herolte-ufs", &node) != kSuccess ||
++	if (SecureDTLookupEntry(NULL, UFS_DT_NODE, &node) != kSuccess ||
+ 	    SecureDTGetProperty(node, "reg", (void const **)&reg, &size) != kSuccess ||
+ 	    size < 2 * sizeof(uintptr_t)) {
+ 		printf("HEROLTE UFS: no /herolte-ufs node in the device tree\n");
+@@ -830,7 +837,7 @@ herolte_ufs_probe(void)
+ 	uintptr_t const *reg = NULL;
+ 	unsigned int size = 0;
+ 
+-	if (SecureDTLookupEntry(NULL, "/herolte-ufs", &node) != kSuccess ||
++	if (SecureDTLookupEntry(NULL, UFS_DT_NODE, &node) != kSuccess ||
+ 	    SecureDTGetProperty(node, "reg", (void const **)&reg, &size) != kSuccess ||
+ 	    size < 2 * sizeof(uintptr_t)) {
+ 		printf("HEROLTE UFS: probe: no /herolte-ufs node\n");
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index d1bec40..31c3356 100644
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -771,7 +771,8 @@ IOFindBSDRoot( char * rootName, unsigned int rootNameSize,
+ 		}
+ 	}
+ 
+-#if defined(ARM64_BOARD_CONFIG_A5XELTE) && !defined(ARM64_BOARD_CONFIG_ZEROLTE)
++#if defined(ARM64_BOARD_CONFIG_A5XELTE)
++#if !defined(ARM64_BOARD_CONFIG_ZEROLTE)
+ 	/* GPIO keys: Exynos 7580 or, on HEROLTE, the Exynos 8890 ALIVE pins. */
+ 	a5xelte_keys_init();
+ #if defined(ARM64_BOARD_CONFIG_HEROLTE)
+@@ -785,6 +786,7 @@ IOFindBSDRoot( char * rootName, unsigned int rootNameSize,
+ 	/* Exynos 7580 I2C touch. */
+ 	a5xelte_touch_probe();
+ #endif
++#endif /* !ARM64_BOARD_CONFIG_ZEROLTE */
+ 	{
+ 	uint32_t emmcprobe = 0;
+ 	PE_parse_boot_argn("emmcprobe", &emmcprobe, sizeof(emmcprobe));
+@@ -792,7 +794,7 @@ IOFindBSDRoot( char * rootName, unsigned int rootNameSize,
+ 		a5xelte_emmc_probe();
+ 	}
+ 	}
+-#if defined(ARM64_BOARD_CONFIG_HEROLTE)
++#if defined(ARM64_BOARD_CONFIG_HEROLTE) || defined(ARM64_BOARD_CONFIG_ZEROLTE)
+ 	{
+ 	uint32_t ufsprobe = 0;
+ 	PE_parse_boot_argn("ufsprobe", &ufsprobe, sizeof(ufsprobe));
