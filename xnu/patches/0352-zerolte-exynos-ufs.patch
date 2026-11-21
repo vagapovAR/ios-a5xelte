@@ -1,5 +1,5 @@
 diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
-index a591abc..ddc66d7 100644
+index a591abc..0df6079 100644
 --- a/bsd/dev/herolte_ufs.c
 +++ b/bsd/dev/herolte_ufs.c
 @@ -15,7 +15,14 @@
@@ -18,7 +18,17 @@ index a591abc..ddc66d7 100644
  #include <sys/param.h>
  #include <sys/systm.h>
  #include <sys/buf.h>
-@@ -751,7 +758,7 @@ herolte_ufs_init(void)
+@@ -739,7 +746,9 @@ herolte_log_start(void)
+ 		thread_deallocate(thread);
+ 	}
+ 	/* Thread backtraces of SpringBoard/backboardd (bsd/dev/sweet_sample.c). */
++#if defined(ARM64_BOARD_CONFIG_SWEET) || defined(ARM64_BOARD_CONFIG_HEROLTE)
+ 	sweet_sample_start();
++#endif
+ }
+ 
+ static int
+@@ -751,7 +760,7 @@ herolte_ufs_init(void)
  	char want[64] = "USERDATA";
  	int error;
  
@@ -27,7 +37,7 @@ index a591abc..ddc66d7 100644
  	    SecureDTGetProperty(node, "reg", (void const **)&reg, &size) != kSuccess ||
  	    size < 2 * sizeof(uintptr_t)) {
  		printf("HEROLTE UFS: no /herolte-ufs node in the device tree\n");
-@@ -830,7 +837,7 @@ herolte_ufs_probe(void)
+@@ -830,7 +839,7 @@ herolte_ufs_probe(void)
  	uintptr_t const *reg = NULL;
  	unsigned int size = 0;
  

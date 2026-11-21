@@ -215,5 +215,40 @@ Patch `0351-zerolte-mbuf-redzone-bringup.patch` keeps the panic on other
 boards but on ZEROLTE prints the mbuf type/flags/len and re-arms the redzone,
 so the boot continues and the owner of the packet becomes visible.
 
+## 2026-11-21: XNU reaches BSD init (second boot)
+
+Kernel `8b52f7c5...` (17 158 592 B), BOOT `96bb61b7...` (19 929 104 B),
+command line
+`debug=0xc keepsyms=1 -enable_kprintf_spam -noprogress cpus=1 wdt=-1 -wdt_no_pmu wdt_test=no_user_checkin`.
+
+The panel shows the whole run: `initialize_screen: no video - forcing serial
+mode` (boot_args.Video is empty; the a5fb console still draws), GIC and
+debug-interface setup, MIG/IPC, KDP, libpthread-514.100.2,
+`cpu_start() cpu: 0`, `initCPU mpidr=0x100 EL1 IRQs=1`, then
+
+```
+SK: netagent is enabled by default for this platform
+SKBL: skmem_region_init seg_size 16384, md_seg_size 16384, drv_buf_seg_size ...
+Skywalk: running self-tests
+Skywalk: sk_copy64_8 ... PASSED
+... (all copy/zero/memcmp-mask tests PASSED)
+bsd_autoconf: calling kminit
+```
+
+No mbuf redzone print on this boot, i.e. the boot-1 mismatch did not
+reproduce; 0351 stays as a safety net. The screen stops at `kminit`, which is
+the expected "no root device" state (IOKitBSDInit then waits for an IOMedia
+with `Content=Apple_HFS`), so the next milestone is storage.
+
+### UFS next
+
+`bsd/dev/herolte_ufs.c` turned out to be SoC-neutral: it maps the ADT node's
+`reg` and only uses the standard UFSHCI block plus vendor registers
+`+0x100/+0x104/+0x140` (no PHY/PMU/CMU writes; it relies on S-Boot's link).
+Patch `0352-zerolte-exynos-ufs.patch` compiles it for ZEROLTE with the node
+`/zerolte-ufs` (base 0x15570000) and keeps the `ufsprobe=1` / `rd=ufsroot0`
+paths in `IOKitBSDInit` while still skipping the Exynos 7580 key/touch pokes.
+
+
 
 
