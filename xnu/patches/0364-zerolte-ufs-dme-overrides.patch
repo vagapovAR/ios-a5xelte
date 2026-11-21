@@ -1,0 +1,54 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index fedf6b1aa..feb285043 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -469,6 +469,25 @@ zerolte_ufs_clocks_on(void)
+ 	delay(1000);
+ }
+ 
++#define UIC_CMD_DME_SET 0x02
++
++/* DME_SET: arg1 = MIB attr/selector, arg2 = attr-set type (0), arg3 = val. */
++static int
++zerolte_ufs_dme_set(uint16_t attr, uint16_t sel, uint32_t val)
++{
++	ufs_wr(REG_IS, ufs_rd(REG_IS));
++	ufs_wr(REG_UIC_ARG1, ((uint32_t)attr << 16) | sel);
++	ufs_wr(REG_UIC_ARG2, 0);
++	ufs_wr(REG_UIC_ARG3, val);
++	ufs_wr(REG_UIC_CMD, UIC_CMD_DME_SET);
++	for (int i = 0; i < 100; i++) {
++		if (ufs_rd(REG_IS) & UIC_COMMAND_COMPL)
++			return (ufs_rd(REG_IS) & (1u << 2)) ? EIO : 0;
++		delay(1000);
++	}
++	return ETIMEDOUT;
++}
++
+ static void
+ zerolte_ufs_phy_init(void)
+ {
+@@ -500,6 +519,23 @@ zerolte_ufs_phy_init(void)
+ 			pma[off / 4] = trsv[i].val;
+ 		}
+ 	}
++	/* UNIPRO/PCS overrides from init_cfg[] and config_unipro(). */
++	{
++		static volatile uint32_t *unipro;
++		if (!unipro) {
++			unipro = (volatile uint32_t *)ml_io_map(0x15571000, 0x200);
++		}
++		if (unipro) {
++			unipro[0x0c8 / 4] = 1;   /* UNIP_DME_PACP_CNFBIT */
++		}
++		printf("HEROLTE UFS: dme option_suite %d autothld %d ov_tm_on %d "
++		    "pcs297 %d ov_tm_off %d\n",
++		    zerolte_ufs_dme_set(0x9564, 0, 0x30103),
++		    zerolte_ufs_dme_set(0x9536, 0, 0x222e),
++		    zerolte_ufs_dme_set(0x9540, 0, 1),
++		    zerolte_ufs_dme_set(0x0297, 0, 0x17),
++		    zerolte_ufs_dme_set(0x9540, 0, 0));
++	}
+ 	for (int i = 0; i < 100; i++) {
+ 		if (pma[0x1e] & (1u << 5))
+ 			break;
