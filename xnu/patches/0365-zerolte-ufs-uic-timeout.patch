@@ -1,0 +1,22 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index feb285043..aaaa6048f 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -422,7 +422,7 @@ zerolte_ufs_uic(uint32_t cmd, uint32_t a1, uint32_t a2, uint32_t a3)
+ 	ufs_wr(REG_UIC_ARG2, a2);
+ 	ufs_wr(REG_UIC_ARG3, a3);
+ 	ufs_wr(REG_UIC_CMD, cmd);
+-	for (int i = 0; i < 100; i++) {
++	for (int i = 0; i < 500; i++) {
+ 		if (ufs_rd(REG_IS) & UIC_COMMAND_COMPL)
+ 			return 0;
+ 		delay(1000);
+@@ -480,7 +480,7 @@ zerolte_ufs_dme_set(uint16_t attr, uint16_t sel, uint32_t val)
+ 	ufs_wr(REG_UIC_ARG2, 0);
+ 	ufs_wr(REG_UIC_ARG3, val);
+ 	ufs_wr(REG_UIC_CMD, UIC_CMD_DME_SET);
+-	for (int i = 0; i < 100; i++) {
++	for (int i = 0; i < 500; i++) {
+ 		if (ufs_rd(REG_IS) & UIC_COMMAND_COMPL)
+ 			return (ufs_rd(REG_IS) & (1u << 2)) ? EIO : 0;
+ 		delay(1000);
