@@ -1,0 +1,65 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index e51f0c90c..444800a67 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -424,6 +424,30 @@ ufs_wake_device(void)
+  * (0x105c0720) and exynos_ufs_ctrl_hci_core_clk() clears
+  * HCI_CORECLK_STOP_EN (BIT(4) of the vendor HCI_FORCE_HCS at 0x1b4).
+  */
++#define REG_UIC_CMD      0x90
++#define REG_UIC_ARG1     0x94
++#define REG_UIC_ARG2     0x98
++#define REG_UIC_ARG3     0x9c
++#define UIC_COMMAND_COMPL (1u << 10)
++#define UIC_CMD_DME_LINK_STARTUP 0x16
++
++/* Send one UIC command and wait for UIC_COMMAND_COMPL (IS bit 10). */
++static int
++zerolte_ufs_uic(uint32_t cmd, uint32_t a1, uint32_t a2, uint32_t a3)
++{
++	ufs_wr(REG_IS, ufs_rd(REG_IS));
++	ufs_wr(REG_UIC_ARG1, a1);
++	ufs_wr(REG_UIC_ARG2, a2);
++	ufs_wr(REG_UIC_ARG3, a3);
++	ufs_wr(REG_UIC_CMD, cmd);
++	for (int i = 0; i < 100; i++) {
++		if (ufs_rd(REG_IS) & UIC_COMMAND_COMPL)
++			return 0;
++		delay(1000);
++	}
++	return ETIMEDOUT;
++}
++
+ static void
+ zerolte_ufs_power_up(void)
+ {
+@@ -460,6 +484,12 @@ ufs_take_over_host(void)
+ 		 */
+ 		printf("HEROLTE UFS: host disabled (hcs 0x%x), enabling\n", hcs);
+ 		ufs_wr(REG_HCE, hce | 1);
++		/*
++		 * The controller resets itself and sets HCE back to 1 when its
++		 * initialisation sequence finishes (ufshcd.c: HCE goes 1 -> 0 -> 1);
++		 * reading the write back immediately proves nothing.
++		 */
++		delay(1000);
+ 		for (int i = 0; i < 50 && !(ufs_rd(REG_HCE) & 1); i++) {
+ 			delay(1000);
+ 		}
+@@ -467,6 +497,16 @@ ufs_take_over_host(void)
+ 		hcs = ufs_rd(REG_HCS);
+ 		printf("HEROLTE UFS: enable done hce 0x%x hcs 0x%x\n", hce, hcs);
+ 	}
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	if ((hce & 1) && !(hcs & HCS_DP)) {
++		int lerr = zerolte_ufs_uic(UIC_CMD_DME_LINK_STARTUP, 0, 0, 0);
++		printf("HEROLTE UFS: link startup %d: is 0x%x pa 0x%x dl 0x%x "
++		    "nl 0x%x tl 0x%x dme 0x%x hcs 0x%x\n",
++		    lerr, ufs_rd(REG_IS), ufs_rd(0x38), ufs_rd(0x3c), ufs_rd(0x40),
++		    ufs_rd(0x44), ufs_rd(0x48), ufs_rd(REG_HCS));
++		hcs = ufs_rd(REG_HCS);
++	}
++#endif
+ 	if (!(hce & 1) || !(hcs & HCS_DP) || !(hcs & HCS_UTRLRDY)) {
+ 		printf("HEROLTE UFS: host not ready (hce 0x%x hcs 0x%x)\n", hce, hcs);
+ 		return ENXIO;
