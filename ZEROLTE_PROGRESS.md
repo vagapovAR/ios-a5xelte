@@ -350,6 +350,35 @@ Next patch (`0362`) is mechanical now:
 After the PHY table and the PA-layer init, the same probe should show `pa 0`
 and `READ(10) LBA1 0, signature EFI PART`, then the GPT.
 
+## 2026-11-21 (latest): PHY table applied, PLL still unlocked
+
+Patch `0362` writes the PMA part of `init_cfg[]` and waits for the MPHY PLL:
+
+```
+phy: pma 0x1e 0xa 0x5e 0x4
+phy: pll 0x8a (lock bit 0) 0x5e 0x4
+link startup 0: is 0x404 pa 0x00000010 ...
+```
+
+The PMA registers are readable and accept the table (`0x1e` went 0x0a -> 0x8a),
+but **bit 5 of PMA 0x1e (PLL lock) stays 0**, so the PA layer still reports
+0x10. The PLL needs the CMU reference clock, which the kernel has not enabled:
+
+- `clk-exynos7420.c`: `aclk_ufs20_link` = gate `ENABLE_ACLK_FSYS1` bit 31,
+  `sclk_ufsunipro20_gated` = `ENABLE_SCLK_FSYS11` bit 20,
+  `sclk_combo_phy_embedded_26m_gated` = `ENABLE_SCLK_FSYS13` bit 24, plus the
+  four `phyclk_ufs20_*_symbol_gated` clocks and the mux
+  `mout_sclk_combo_phy_embedded <- top_sclk_phy_fsys1_26m`
+  (`exynos_ufs_clk_init`). The register offsets are the entries of
+  `exynos7420_clk_regs[]` in the same file (CMU_FSYS block).
+- The DTS also lists `pinctrl-0 = <&ufs_rst_n &ufs_refclk_out>`, so the two
+  pinmux settings may need to be applied as well.
+
+Next patch (`0363`): map CMU_FSYS, ungate those clocks, select the 26 MHz
+parent, then re-run the PHY init + link startup. With the PLL locked the PA
+layer should reach 0 and the GPT read should follow.
+
+
 
 
 
