@@ -134,6 +134,22 @@ index 0000000..5720aea
 +
 +options   CONFIG_RESLIDE_SHARED_CACHE		# <reslide_shared_cache>
 +options   CONFIG_KERNEL_TBI		# <kernel_tbi>
+diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
+index 2640ac4..8400a36 100644
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -56,6 +56,11 @@ extern "C" uint64_t a5xelte_power_pressed_at;   /* bsd/dev/a5xelte_keys.c */
+ #include <kern/thread.h>
+ #include <sys/proc.h>
+ 
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++/* The Note FE zero-copy display path is HEROLTE-only for now. */
++static bool notefe_zc_active(void) { return false; }
++#endif
++
+ #if defined(ARM64_BOARD_CONFIG_HEROLTE)
+ static void sweet_fb_copy_init(void);
+ /* No CPU copies to the panel before this mach time (herolte_gpu.c). */
 diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
 index 10449ab..d1bec40 100644
 --- a/iokit/bsddev/IOKitBSDInit.cpp
