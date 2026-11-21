@@ -23,6 +23,15 @@ fi
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${1:-$REPO/build-zerolte}
+# darwin-xnu-build does not quote $WORK everywhere; a space in it splits paths
+# ("cp: .../Проект по умолчанию/..." -> "умолчанию/... is not a directory").
+case "$WORK" in
+*" "*)
+    SAFE="$HOME/zerolte-build"
+    echo "work dir '$WORK' contains a space; using $SAFE instead"
+    WORK="$SAFE"
+    ;;
+esac
 DXB_REPO=https://github.com/blacktop/darwin-xnu-build
 DXB_SHA=663906528d1cd5ea8fde7de6f16de73db9511549
 MACOS_VERSION=13.5          # xnu-8796, the iOS 16 generation
