@@ -268,6 +268,42 @@ Patch `0352-zerolte-exynos-ufs.patch` compiles it for ZEROLTE with the node
 `/zerolte-ufs` (base 0x15570000) and keeps the `ufsprobe=1` / `rd=ufsroot0`
 paths in `IOKitBSDInit` while still skipping the Exynos 7580 key/touch pokes.
 
+## 2026-11-21: UFS probed on the S6 (register map, host state)
+
+With patch `0355` (the driver's `printf` was a no-op: `CONFIG_NO_PRINTF_STRINGS`
+in this DEVELOPMENT kernel, so use `kprintf`) the probe finally printed:
+
+```
+cap 0x383ff0f  ver 0x200  hcs 0x10f  hce 0x0  is 0x0
+utrlba 0x0:0   dbr 0x0  rsr 0x1
+txprdt 0xc     rxprdt 0xc  nexus 0xffff
+```
+
+- The HCI block at 0x15570000 answers; the vendor block at +0x100 answers.
+- `ufshci.h` in the 7420 tree defines `REG_CONTROLLER_STATUS = 0x30`,
+  `REG_CONTROLLER_ENABLE = 0x34`, list base 0x50/0x54, doorbell 0x58,
+  run/stop 0x60, UIC command 0x90..0x9c. The 8890 port's offsets are correct
+  for this SoC; a "standard offsets" patch (`0358`) was tried and reverted —
+  0x28/0x2c read 0 because this IP does not use them.
+- `hcs 0x10f` = DP | UTRLRDY | UTMRLRDY | UCRDY (+bit 8): the host is ready.
+  `hce 0x0`: the controller is disabled. Writing 1 enables it (read back 1),
+  but every UTP command still times out (`error 60`, including `READ(10)`),
+  and by the second probe HCE reads 0 again.
+- PHY power (`ufs-phy-sys`, PMU 0x105c0720) is already 1 and the vendor
+  `HCI_FORCE_HCS` (0x1b4) is 0, i.e. the core clock is not stopped
+  (patch `0359` prints both before/after).
+
+### Next: UIC bring-up
+
+Linux's `ufs-exynos` drives HCE through `UFSHCI_QUIRK_USE_OF_HCE`: after
+`hce_enable_notify` it sends UIC `DME_RESET` (0x14), `DME_ENABLE` (0x12), then
+`DME_LINKSTARTUP` (0x16), and only then rings the doorbell. The S7's S-Boot had
+done that already; the S6's has not, which is the remaining reason the
+transfer never completes. The UIC protocol lives at 0x90 (command), 0x94/0x98/
+0x9c (args), completion in `IS` bit 10 (`UIC_COMMAND_COMPL`), errors in
+0x38..0x48. That is the next patch.
+
+
 
 
 
