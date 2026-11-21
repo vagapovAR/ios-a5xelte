@@ -1,0 +1,38 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index dd37e7dc1..9fd5748ab 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -62,6 +62,24 @@ extern void thread_deallocate(thread_t);
+ extern int hz;
+ 
+ #define REG_CAP         0x00
++#define REG_VER         0x08
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++/*
++ * Exynos 7420: the standard UFSHCI 2.0 offsets. The 8890 in the S7 maps
++ * HCS/HCE/UTRL* at +8 from these (probed on the S6 edge 2026-11-21:
++ * 0x28/0x2c read 0, 0x30 is UECPA 0x10f, and the list written to 0x50
++ * landed in UTRLDBR while the real UTRLBA at 0x48 stayed 0).
++ */
++#define REG_IS          0x20
++#define REG_IE          0x24
++#define REG_HCS         0x28
++#define REG_HCE         0x2c
++#define REG_UTRLBA      0x48
++#define REG_UTRLBAU     0x4c
++#define REG_UTRLDBR     0x50
++#define REG_UTRLCLR     0x54
++#define REG_UTRLRSR     0x58
++#else
+ #define REG_IS          0x20
+ #define REG_IE          0x24
+ #define REG_HCS         0x30
+@@ -71,7 +89,7 @@ extern int hz;
+ #define REG_UTRLDBR     0x58
+ #define REG_UTRLCLR     0x5c
+ #define REG_UTRLRSR     0x60
+-#define REG_VER         0x08
++#endif
+ /* Exynos vendor HCI registers, 0x100 above the standard block. */
+ #define VS_TXPRDT_ENTRY_SIZE    0x100
+ #define VS_RXPRDT_ENTRY_SIZE    0x104
