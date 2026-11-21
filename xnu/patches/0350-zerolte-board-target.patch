@@ -11,6 +11,26 @@ index 7dee125..9f9e5f3 100644
  SWEET_PTHREAD_ROOT = $(SRCROOT)/bsd/pthread/sweet_libpthread
  SWEET_PTHREAD_INC = -I$(SWEET_PTHREAD_ROOT) -I$(SWEET_PTHREAD_ROOT)/private -I$(SWEET_PTHREAD_ROOT)/include
  sweet_pthread_init.o_INCFLAGS = $(SWEET_PTHREAD_INC)
+diff --git a/bsd/dev/herolte_wifi.c b/bsd/dev/herolte_wifi.c
+index fee06e2..00800cb 100644
+--- a/bsd/dev/herolte_wifi.c
++++ b/bsd/dev/herolte_wifi.c
+@@ -6,6 +6,7 @@
+  *
+  * The firmware, the NVRAM and the CLM are the phone's own, from VENDOR, in the drop zone: they are not in this repository.
+  */
++#if defined(ARM64_BOARD_CONFIG_HEROLTE)
+ #include <stdarg.h>
+ #include <sys/param.h>
+ #include <sys/systm.h>
+@@ -2137,4 +2138,5 @@ herolte_wifi_files_ready(void)
+ 	}
+ 	vnode_put(vp);
+ 	return true;
+-}
+\ No newline at end of file
++}
++#endif /* ARM64_BOARD_CONFIG_HEROLTE */
 diff --git a/config/MASTER.arm64.zerolte b/config/MASTER.arm64.zerolte
 new file mode 100644
 index 0000000..5720aea
@@ -135,7 +155,7 @@ index 0000000..5720aea
 +options   CONFIG_RESLIDE_SHARED_CACHE		# <reslide_shared_cache>
 +options   CONFIG_KERNEL_TBI		# <kernel_tbi>
 diff --git a/iokit/Kernel/arm/SweetFramebuffer.cpp b/iokit/Kernel/arm/SweetFramebuffer.cpp
-index 2640ac4..8400a36 100644
+index 2640ac4..124a24f 100644
 --- a/iokit/Kernel/arm/SweetFramebuffer.cpp
 +++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
 @@ -56,6 +56,11 @@ extern "C" uint64_t a5xelte_power_pressed_at;   /* bsd/dev/a5xelte_keys.c */
@@ -150,6 +170,17 @@ index 2640ac4..8400a36 100644
  #if defined(ARM64_BOARD_CONFIG_HEROLTE)
  static void sweet_fb_copy_init(void);
  /* No CPU copies to the panel before this mach time (herolte_gpu.c). */
+@@ -277,6 +282,10 @@ OSDefineMetaClassAndStructors(IOMobileFramebufferUserClient, IOUserClient);
+  * multiplies every pixel by it (herolte_gpu.c), which on this AMOLED is what brightness is.
+  */
+ extern "C" void notefe_brightness_set(uint32_t level, const char *why);
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++/* No Note FE backlight path on zerolte yet. */
++extern "C" void notefe_brightness_set(uint32_t, const char *) {}
++#endif
+ 
+ class AppleARMBacklight : public IOService {
+ 	OSDeclareDefaultStructors(AppleARMBacklight);
 diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
 index 10449ab..d1bec40 100644
 --- a/iokit/bsddev/IOKitBSDInit.cpp
