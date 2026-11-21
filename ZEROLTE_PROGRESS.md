@@ -142,6 +142,19 @@ Fixed in 2461a2d (ZEROLTE added to the three `*.sh`, a `false`
 `notefe_zc_active()` for ZEROLTE, patch 0350 regenerated and re-validated with
 `git apply`). Run 44920173487 is the retry.
 
+Run 44920173487 compiled the whole kernel (every object, including the staged
+BearSSL/pthread/HFS) in 9m48s and reached the link, then failed on undefined
+symbols: `SweetIOKitDaemonStandIn`, `SweetNetworkStackStart`, `hakios_net_*`,
+`hakios_sta_*` (all from `bsd/dev/herolte_wifi.c`) and
+`notefe_brightness_set`. `herolte_wifi.c` was the only `herolte_*` driver
+without an `ARM64_BOARD_CONFIG_HEROLTE` guard, and its only caller
+(`bsd_init.c:1115`) is inside that guard; the backlight setter is declared
+outside the guard in `SweetFramebuffer.cpp` and called by `AppleARMBacklight`.
+Fixed in 919887f: the wifi driver is wrapped in the HEROLTE guard and
+`notefe_brightness_set` gets a ZEROLTE definition. Run 44921252656 is the
+third attempt.
+
+
 
 The local macOS path stays available: `tools/zerolte-macos-build.sh`
 reproduces the workflow (Xcode 15, dxb pinned at 663906528d1c, patches copied,
@@ -149,4 +162,35 @@ firehose rewritten, `MACOS_VERSION=13.5 KERNEL_CONFIG=DEVELOPMENT
 MACHINE_CONFIG=ZEROLTE`) and copies the result to `build-zerolte/out/`.
 The phone stays in the dev state (loader in BOOT, 30 s -> TWRP); stock BOOT is
 one `dd` away.
+
+## 2026-11-21: XNU runs on the S6 edge (first kernel boot)
+
+Run 44921252656 built `kernel.development.zerolte` (17 158 352 B, sha256
+`a200f9fb...07c5f`; the LSE check passed) in 17m59s. Payload
+(16 530 288 B) + `xnu_boot.Image` (12 256 B) packed into the 28 MiB BOOT
+(`xnu-boot.img`, 19 929 104 B, sha256 `58a8b29f...6b74`), written to `sda5`,
+read back identical, rebooted.
+
+**The panel shows the XNU console**: platform expert, GIC/CPU-interface setup,
+`pe_arm_init_debug` (harmless "no cpu-debug-interface" kprintf), scheduler
+clutch defaults, MIG/IPC init, serial KDP, HMAC-SHA256 registration,
+`clock_initialize`, libpthread-514.100.2, `MACH processor_registration`
+(cluster 0, cpu 0), `initCPU`, SMC self-tests — then a panic:
+
+```
+panic(cpu 0 caller 0xfffffff0078125b0):
+  mbuf <addr> redzone violation with value 0x... (instead of 0x...,
+  using cookie 0x...)
+```
+
+(`bsd/kern/uipc_mbuf.c:8498`, reached from `m_free`/the pkthdr reset path.)
+So the loader, the ADT (GIC 0x11001000, 24 MHz timer, 4x A53 with
+`cpus=1`), the 4 KiB XNU start-up and the DECON console all work on
+Exynos 7420. The remaining question is the mbuf redzone check; the exact
+values are not yet legible on the photo.
+
+Boot command line used:
+`debug=0xc keepsyms=1 -enable_kprintf_spam -noprogress cpus=1`
+(no `rd=`: there is no zerolte block driver yet).
+
 

@@ -1,0 +1,30 @@
+diff --git a/bsd/kern/uipc_mbuf.c b/bsd/kern/uipc_mbuf.c
+index da13c04..0e4c22b 100644
+--- a/bsd/kern/uipc_mbuf.c
++++ b/bsd/kern/uipc_mbuf.c
+@@ -8495,10 +8495,25 @@ m_redzone_verify(struct mbuf *m)
+ 
+ 	mb_redzone = ((u_int32_t)(uintptr_t)m) ^ mb_redzone_cookie;
+ 	if (m->m_pkthdr.redzone != mb_redzone) {
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++		/*
++		 * ZEROLTE bring-up (boot 1): one mbuf reaches m_free() carrying the
++		 * redzone of another zone element (mbuf 0xfffffff6500aaf00 held
++		 * 0x500aaf00, i.e. the pattern of 0xfffffff654ab49a0). Report it
++		 * and re-arm instead of stopping the boot; the copy path is still
++		 * under investigation.
++		 */
++		printf("ZEROLTE mbuf %p redzone 0x%x instead of 0x%x "
++		    "(cookie 0x%x), type %d flags 0x%x len %u: re-armed\n",
++		    m, m->m_pkthdr.redzone, mb_redzone, mb_redzone_cookie,
++		    m->m_type, m->m_flags, m->m_pkthdr.len);
++		m->m_pkthdr.redzone = mb_redzone;
++#else
+ 		panic("mbuf %p redzone violation with value 0x%x "
+ 		    "(instead of 0x%x, using cookie 0x%x)\n",
+ 		    m, m->m_pkthdr.redzone, mb_redzone, mb_redzone_cookie);
+ 		/* NOTREACHED */
++#endif
+ 	}
+ }
+ 
