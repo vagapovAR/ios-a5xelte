@@ -314,6 +314,43 @@ power mode) and the PHY table at 0x15571800. The register map and the probe
 outputs above are the inputs for that work; the kernel-side plumbing
 (`kprintf`, PMU PHY power, offset map, probe) is done.
 
+## 2026-11-21 (later): HCE holds, link startup reports PA error 0x10
+
+After fixing two build-system traps (a deleted patch stayed in `dxb/patches`
+and kept applying; `build.sh` keys "already built" off
+`build/xnu.obj/kernel.<cfg>.<machine>`) the latest kernel prints:
+
+```
+probe: cap 0x383ff0f ver 0x200 hcs 0x10f hce 0x0 is 0x0 utrlba 0x0:b0001000 ...
+power-up: phy_sys 0x1 force_hcs 0x0
+host disabled (hcs 0x10f), enabling
+enable done hce 0x1 hcs 0x10f            <- HCE now stays 1 (1->0->1 wait works)
+link startup 0: is 0x404 pa 0x00000010 dl 0 nl 0 tl 0 dme 0 hcs 0x10f
+command 0x00 timed out ...
+```
+
+`IS=0x404` is `UIC_COMMAND_COMPL | UIC_ERROR`; the **PA layer error code is
+0x10** (PHY adapter initialisation). So the controller is enabled and the UIC
+command path works, but the UniPro PA never comes up: this is exactly what
+`exynos_ufs_phy_init()` + `exynos_ufs_config_unipro()` prepare.
+
+Next patch (`0362`) is mechanical now:
+
+- `ufs-exynos.c:2038` `init_cfg[]` (19 entries) and `:2062` `post_init_cfg[]`:
+  PMA writes (`PHY_PMA_COMN_ADDR`, `PHY_PMA_TRSV_ADDR` into the block at
+  0x15571800) plus `PA_DBG_OV_TM`, `PA_DBG_OPTION_SUITE`, `PA_DBG_AUTOMODE_THLD`
+  etc. through `DME_SET` (0x02).
+- Encoding: `UIC_ARG_MIB_SEL(attr, sel) = ((attr & 0xffff) << 16) | (sel & 0xffff)`,
+  `UIC_ARG_ATTR_TYPE(t) = (t & 0xff) << 16`, args go to 0x94/0x98/0x9c, command
+  to 0x90; UIC opcodes: GET 0x01, SET 0x02, DME_ENABLE 0x12, DME_RESET 0x14,
+  LINK_STARTUP 0x16; completion is `IS` bit 10, errors at 0x38/0x3c/0x40/0x44/0x48.
+- Also `PHY_PMA_COMN_ADDR(0x1e)` bit 5 is the MPHY PLL lock
+  (`exynos_ufs_wait_pll_lock`).
+
+After the PHY table and the PA-layer init, the same probe should show `pa 0`
+and `READ(10) LBA1 0, signature EFI PART`, then the GPT.
+
+
 
 
 
