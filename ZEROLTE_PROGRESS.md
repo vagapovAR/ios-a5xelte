@@ -163,6 +163,25 @@ MACHINE_CONFIG=ZEROLTE`) and copies the result to `build-zerolte/out/`.
 The phone stays in the dev state (loader in BOOT, 30 s -> TWRP); stock BOOT is
 one `dd` away.
 
+### Local macOS host (hackintosh, 2026-11-21)
+
+- macOS 15.8 on x86_64 (i5-12400F). Homebrew refuses to install: "Homebrew on
+  macOS is only supported on Apple Silicon processors".
+- Installed by hand: GNU bash 5.2.37 in `/usr/local/bin/bash` (CI uses brew's
+  bash 5), `adb` 1.0.41 (platform-tools; copied to `/usr/local/bin/adb`, not
+  symlinked, because a root-owned symlink with 0700 cannot be `readlink`ed),
+  and `gum`/`xcodes`/`cmake`/`ninja` stubs in `/usr/local/bin` — darwin-xnu-
+  build only runs `command -v` on those four, and never invokes them for a
+  plain kernel build with `MACOS_VERSION` set.
+- `jq` is the system one. `python3 -m venv` works.
+- **Xcode.app is mandatory** (`iig` for the IOKit `.iig` files, plus
+  `ctfconvert`); Command Line Tools alone are not enough. CLT clang and the
+  15.5 SDK are only used by the host tools.
+- The script resets the patched `dxb/xnu` tree before re-applying patches, so
+  an edited patch is never silently skipped; object files stay, so reruns are
+  incremental. `--clean` wipes `dxb` for a full rebuild.
+
+
 ## 2026-11-21: XNU runs on the S6 edge (first kernel boot)
 
 Run 44921252656 built `kernel.development.zerolte` (17 158 352 B, sha256

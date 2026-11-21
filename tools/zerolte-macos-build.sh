@@ -33,10 +33,18 @@ START=$(date +%s)
 [ "$(uname -s)" = Darwin ] || { echo "run this on macOS" >&2; exit 1; }
 
 echo "== dependencies =="
-for tool in git python3 brew; do
-    command -v "$tool" >/dev/null || { echo "missing $tool" >&2; exit 1; }
+# No Homebrew: Intel macOS 15 is no longer supported by it. The tools are
+# installed by hand: jq (system), gum/xcodes/cmake/ninja (stubs in
+# /usr/local/bin, only checked by darwin-xnu-build), GNU bash 5.
+missing=""
+for tool in git python3 curl jq gum xcodes cmake ninja; do
+    command -v "$tool" >/dev/null || missing="$missing $tool"
 done
-brew list jq >/dev/null 2>&1 || brew install jq gum bash cmake ninja
+if [ -n "$missing" ]; then
+    echo "missing:$missing" >&2
+    echo "install them in /usr/local/bin (see ZEROLTE_PROGRESS.md, 'local macOS')" >&2
+    exit 1
+fi
 
 echo "== Xcode =="
 XC=$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1 || true)
@@ -45,8 +53,11 @@ XC=$(ls -d /Applications/Xcode_15*.app 2>/dev/null | sort -V | tail -1 || true)
 echo "using $XC"
 sudo xcode-select -s "$XC"
 if ! command -v xcodes >/dev/null; then
-    printf '#!/bin/sh\nexit 0\n' | sudo tee "$(brew --prefix)/bin/xcodes" >/dev/null
-    sudo chmod +x "$(brew --prefix)/bin/xcodes"
+    printf '#!/bin/sh\nexit 0\n' > /tmp/xcodes.stub
+    chmod 755 /tmp/xcodes.stub
+    sudo mkdir -p /usr/local/bin
+    sudo cp /tmp/xcodes.stub /usr/local/bin/xcodes
+    rm -f /tmp/xcodes.stub
 fi
 
 echo "== darwin-xnu-build @ ${DXB_SHA:0:12} =="
