@@ -120,6 +120,9 @@ PY
 
 echo "== build (incremental after the first run) =="
 cd "$WORK/dxb"
+# darwin-xnu-build skips build_xnu when the kernel file already exists, even if
+# the sources changed: drop it so the (patched) files really recompile.
+rm -f "fakeroot/System/Library/Kernels/kernel.$(echo "$KERNEL_CONFIG" | tr A-Z a-z).$(echo "$MACHINE_CONFIG" | tr A-Z a-z)"*
 MACOS_VERSION="$MACOS_VERSION" KERNEL_CONFIG="$KERNEL_CONFIG" MACHINE_CONFIG="$MACHINE_CONFIG" \
     bash build.sh 2>&1 | tee "$WORK/build.log"
 
