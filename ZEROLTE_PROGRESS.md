@@ -303,6 +303,18 @@ transfer never completes. The UIC protocol lives at 0x90 (command), 0x94/0x98/
 0x9c (args), completion in `IS` bit 10 (`UIC_COMMAND_COMPL`), errors in
 0x38..0x48. That is the next patch.
 
+**Correction (same day):** `ufshcd.c` says the HCE bit goes 1 -> 0 -> 1 while
+the controller initialises; our `enable done hce 0x1` is the write being read
+back immediately, and the second probe's `hce 0x0` means the controller never
+finished initialising. So before UIC commands, the 7420 needs what
+`ufs-exynos` does around `__ufshcd_hba_enable`:
+`exynos_ufs_config_smu()` (the UFS protector block at +0x2000),
+`exynos_ufs_pre_link()` / `post_link()` (UNIPRO at +0x1000, PA/DME attributes,
+power mode) and the PHY table at 0x15571800. The register map and the probe
+outputs above are the inputs for that work; the kernel-side plumbing
+(`kprintf`, PMU PHY power, offset map, probe) is done.
+
+
 
 
 
