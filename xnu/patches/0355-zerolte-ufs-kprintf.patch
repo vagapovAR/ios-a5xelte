@@ -1,0 +1,19 @@
+diff --git a/bsd/dev/herolte_ufs.c b/bsd/dev/herolte_ufs.c
+index 0df6079b7..6dea9b97e 100644
+--- a/bsd/dev/herolte_ufs.c
++++ b/bsd/dev/herolte_ufs.c
+@@ -44,6 +44,14 @@
+ #include <libkern/libkern.h>
+ #include <machine/atomic.h>
+ 
++/*
++ * libkern.h maps printf() to nothing when CONFIG_NO_PRINTF_STRINGS is set,
++ * which is the case for the DEVELOPMENT kernel. This driver's messages are
++ * the only way to see the UFS state on screen, so use kprintf directly.
++ */
++#undef printf
++#define printf kprintf
++
+ extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
+ /* osfmk/arm/machine_routines.h, not exported to the BSD layer */
+ extern vm_offset_t ml_io_map(vm_offset_t phys_addr, vm_size_t size);
