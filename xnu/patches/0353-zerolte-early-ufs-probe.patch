@@ -1,0 +1,55 @@
+diff --git a/bsd/kern/bsd_init.c b/bsd/kern/bsd_init.c
+index 8692b66..0d44154 100644
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -719,6 +719,16 @@ bsd_init(void)
+ 	restricted_in_port_init();
+ #endif /* SOCKETS */
+ 
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	/* S-Boot leaves the UFS link up; read the host and the GPT now, before
++	 * bsd_autoconf(), so the storage answer is on screen even if the later
++	 * root-device search never runs. */
++	{
++		extern void herolte_ufs_probe(void);
++		herolte_ufs_probe();
++	}
++#endif
++
+ 	/*
+ 	 * Initializes security event auditing.
+ 	 * XXX: Should/could this occur later?
+@@ -1123,6 +1133,9 @@ bsd_autoconf(void)
+ {
+ 	kprintf("bsd_autoconf: calling kminit\n");
+ 	kminit();
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	kprintf("bsd_autoconf: kminit done\n");
++#endif
+ 
+ 	/*
+ 	 * Early startup for bsd pseudodevices.
+@@ -1134,6 +1147,9 @@ bsd_autoconf(void)
+ 			(*pi->ps_func)(pi->ps_count);
+ 		}
+ 	}
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	kprintf("bsd_autoconf: pseudo-inits done\n");
++#endif
+ 
+ 	return IOKitBSDInit();
+ }
+diff --git a/iokit/bsddev/IOKitBSDInit.cpp b/iokit/bsddev/IOKitBSDInit.cpp
+index 31c3356..6dbcced 100644
+--- a/iokit/bsddev/IOKitBSDInit.cpp
++++ b/iokit/bsddev/IOKitBSDInit.cpp
+@@ -114,6 +114,9 @@ thread_call_t corefile_open_call = NULL;
+ kern_return_t
+ IOKitBSDInit( void )
+ {
++#if defined(ARM64_BOARD_CONFIG_ZEROLTE)
++	IOLog("IOKitBSDInit: enter\n");
++#endif
+ 	IOService::publishResource("IOBSD");
+ 
+ #if IOPOLLED_COREFILE
